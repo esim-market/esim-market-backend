@@ -7,11 +7,13 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.common.env.redis_env_settings import RedisEnvSettings
 from backend.common.env.settings import MongoSettings
-from backend.common.logging import configure_logging
+from backend.common.logging import configure_logging, get_logger
 from backend.common.mongodb_lifecycle_mixin import MongoDbLifecycleMixin
 from backend.common.redis_lifecycle_mixin import RedisLifecycleMixin
 from .health_router import router as health_router
 from .unhandled_exception_middleware import UnhandledExceptionMiddleware
+
+logger = get_logger(__name__)
 
 
 class ApiAppBase(MongoDbLifecycleMixin, RedisLifecycleMixin):
@@ -22,12 +24,18 @@ class ApiAppBase(MongoDbLifecycleMixin, RedisLifecycleMixin):
         @asynccontextmanager
         async def lifespan(app: FastAPI):
             configure_logging()
-            await self.open_mongodb(MongoSettings())
-            await self.open_redis(RedisEnvSettings())
-            app.state.mongodb_client = self.mongodb_client
-            app.state.redis_connection = self.redis_connection
-            app.state.redis_repository_factory = self.redis_repository_factory
-            app.state.redis_repository = self.redis_repository
+            try:
+                await self.open_mongodb(MongoSettings())
+            except Exception:
+                logger.exception("MongoDB is unavailable during API startup")
+            try:
+                await self.open_redis(RedisEnvSettings())
+            except Exception:
+                logger.exception("Redis is unavailable during API startup")
+            app.state.mongodb_client = getattr(self, "mongodb_client", None)
+            app.state.redis_connection = getattr(self, "redis_connection", None)
+            app.state.redis_repository_factory = getattr(self, "redis_repository_factory", None)
+            app.state.redis_repository = getattr(self, "redis_repository", None)
             try:
                 yield
             finally:

@@ -16,8 +16,14 @@ async def main() -> None:
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, job.request_stop)
     try:
-        await job.open_mongodb(MongoSettings())
-        await job.open_redis(RedisEnvSettings())
+        try:
+            await job.open_mongodb(MongoSettings())
+        except Exception:
+            logger.exception("MongoDB is unavailable during job startup")
+        try:
+            await job.open_redis(RedisEnvSettings())
+        except Exception:
+            logger.exception("Redis is unavailable during job startup")
         async with job:
             await job.run()
     finally:
