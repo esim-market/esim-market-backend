@@ -48,3 +48,6 @@ class RedisLifecycleMixin:
             await client.aclose()
         if not isinstance(connection, Redis):
             await connection.sentinel.close()
+        self.redis_connection = None
+        self.redis_repository_factory = None
+        self.redis_repository = None
