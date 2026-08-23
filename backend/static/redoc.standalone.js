@@ -1,0 +1,1 @@
+window.Redoc={init:function(url,opts,el){fetch(url).then(function(r){return r.json()}).then(function(spec){el.innerHTML="<h2>"+(spec.info&&spec.info.title||"API")+"</h2><pre>"+JSON.stringify(spec,null,2)+"</pre>"})}};

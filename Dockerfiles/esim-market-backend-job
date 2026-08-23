@@ -1,0 +1,13 @@
+FROM python:3.12.14-slim-trixie
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends dumb-init \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /home
+COPY requirements-job.txt /tmp/requirements-job.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-job.txt
+COPY ./backend /home/backend/backend
+
+ENV PYTHONPATH=/home/backend
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["python", "-m", "backend.gate.taskmanager.main"]

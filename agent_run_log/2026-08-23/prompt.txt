@@ -1,0 +1,515 @@
+
+Read and follow AGENTS.md.
+
+There is an existing Redis implementation under:
+
+./local_reference/redis/
+
+These files are reference/source implementation material from an older project.
+
+Inspect all files under ./local_reference/redis before implementing Redis support.
+
+Adapt the useful Redis repository code into the target locations defined by AGENTS.md:
+
+./backend/repository/redis/
+./backend/common/env/redis_env_settings.py
+
+Important rules:
+
+1. Preserve the standalone vs Sentinel repository architecture.
+2. Preserve the RedisRepositoryFactory mapping pattern where reasonable.
+3. Preserve asynchronous redis-py behavior.
+4. Do not blindly copy legacy imports.
+5. Remove or refactor dependencies on unrelated LLM/RAG classes, enums, decorators, constants, or entities.
+6. Do not invent missing legacy classes merely to make imports work.
+7. Refactor the Redis code so it is self-contained inside this project.
+8. Keep Pydantic v2 compatibility.
+9. Integrate Redis initialization with the reusable lifecycle mixins described in AGENTS.md.
+10. Do not modify the files inside ./reference/redis. Treat them as read-only reference input.
+
+After adapting the code, report:
+- which reference files were used,
+- what was copied substantially unchanged,
+- what was refactored,
+- which legacy dependencies were removed,
+- any Redis behavior that could not be safely preserved.
+
+
+Read AGENTS.md completely before making any changes.
+
+Important context:
+
+- The RedisRepository implementation has already been adapted from the reference files.
+- Do NOT redo the Redis implementation unless you discover a concrete compile/runtime defect that blocks the remaining bootstrap work.
+- Your task now is to audit the current repository against ALL requirements under:
+
+  "Bootstraping / Initializing"
+
+and complete every missing requirement from that section.
+
+Do NOT implement:
+- "Complex Tuning"
+- "Integrating the API SDK with esim connect"
+
+Those sections must remain skipped.
+
+First, perform a gap analysis.
+
+Inspect:
+- the complete AGENTS.md,
+- the entire current repository tree,
+- existing Dockerfiles,
+- requirements-api.txt,
+- requirements-job.txt,
+- backend/common/,
+- backend/usecase/,
+- backend/repository/,
+- backend/gate/integration/,
+- backend/gate/taskmanager/,
+- backend/static/.
+
+Then produce an internal checklist of every requirement in Section 1 and classify each as:
+
+- COMPLETE
+- INCOMPLETE
+- MISSING
+- BLOCKED
+
+Do not stop after the audit.
+
+After the audit, implement all INCOMPLETE and MISSING items.
+
+Pay particular attention to the following areas, because they may not have been implemented yet.
+
+1. Repository structure
+
+Ensure the repository follows the required layout, including:
+
+Dockerfiles/
+  esim-market-backend-api
+  esim-market-backend-job
+
+requirements-api.txt
+requirements-job.txt
+
+backend/
+  common/
+  usecase/
+  repository/
+  gate/
+    integration/
+    taskmanager/
+  static/
+
+Do not create the old nested Dockerfile structure.
+
+2. Pydantic
+
+Use Pydantic 2.x only.
+
+Resolve and pin the latest stable Pydantic 2.x version compatible with:
+- FastAPI
+- Beanie
+- pydantic-settings
+
+Do not use Pydantic v1 APIs.
+
+3. UsecaseBase
+
+Create and use:
+
+backend/usecase/usecase_base.py
+
+with an abstract async execution contract.
+
+All concrete use-case classes must inherit from UsecaseBase.
+
+Do not couple UsecaseBase to FastAPI, Redis, MongoDB, or Uvicorn.
+
+4. eSIM seller repository architecture
+
+Implement:
+
+backend/repository/seller/esim_seller_repository_base.py
+backend/repository/seller/esim_connect_repository.py
+backend/repository/seller/esim_xyz_repository.py
+backend/repository/seller/repository_factory.py
+
+Requirements:
+
+- EsimSellerRepositoryBase must be abstract.
+- It must contain:
+  - async list_products(...)
+  - async place_order(...)
+
+- EsimConnectRepository must inherit from it.
+- EsimXYZRepository must inherit from it.
+- RepositoryFactory must use a mapping-based factory.
+- RepositoryFactory.create(...) must accept an already-created httpx.AsyncClient.
+- Do not create a new HTTP client per repository operation.
+- Do not invent real seller API endpoints.
+- Actual eSIM Connect SDK integration must remain unimplemented.
+
+5. MongoDB / Beanie lifecycle
+
+Ensure both API and taskmanager use Beanie and AsyncMongoClient.
+
+Create reusable lifecycle mixins/helpers for:
+- creating the MongoDB client,
+- init_beanie(...),
+- storing/exposing the client,
+- closing resources.
+
+Do not duplicate MongoDB lifecycle code between API and jobs.
+
+For FastAPI expose the MongoDB client via app.state.
+
+Use FastAPI lifespan, not deprecated startup/shutdown decorators.
+
+6. Redis lifecycle integration
+
+Redis repository code already exists.
+
+Now ensure it is actually wired into:
+- FastAPI startup/lifespan
+- taskmanager lifecycle
+
+Use reusable Redis lifecycle mixins/helpers.
+
+For FastAPI expose stable state fields such as:
+
+app.state.redis_connection
+app.state.redis_repository_factory
+app.state.redis_repository
+
+Do not create Redis connections per request.
+
+7. ApiAppBase
+
+Create or complete:
+
+backend/gate/integration/api_app_base.py
+
+ApiAppBase must centralize:
+- FastAPI construction,
+- lifespan,
+- MongoDB lifecycle,
+- Redis lifecycle,
+- root_path handling,
+- self-hosted Swagger/ReDoc,
+- static mounting,
+- router registration.
+
+Do not place business logic in ApiAppBase.
+
+8. Liveness and readiness
+
+Create:
+
+backend/gate/integration/health_router.py
+
+with:
+
+GET /health/live
+GET /health/ready
+
+Rules:
+
+/health/live:
+- process/event-loop liveness only,
+- must not fail only because MongoDB or Redis is temporarily unavailable.
+
+/health/ready:
+- verify MongoDB and Redis,
+- return HTTP 200 when ready,
+- return HTTP 503 when required dependencies are unavailable,
+- do not expose credentials, URIs, or stack traces.
+
+9. Self-hosted Swagger UI / ReDoc
+
+Ensure FastAPI default CDN docs are disabled.
+
+Create custom:
+- /docs
+- /redoc
+- OAuth2 redirect
+
+Mount:
+
+backend/static/
+
+and provide local:
+- swagger-ui-bundle.js
+- swagger-ui.css
+- redoc.standalone.js
+- favicon.ico
+
+The docs must work when FastAPI root_path is non-empty.
+
+Do not use public CDN assets at runtime.
+
+10. Logging
+
+Implement the shared logging layer defined in AGENTS.md.
+
+Create:
+
+backend/common/logging/
+  __init__.py
+  logger_factory.py
+  logging_config.py
+
+Support:
+- stdout
+- stderr
+- RotatingFileHandler
+
+Configuration must support:
+
+LOG_LEVEL
+LOG_FILE_ENABLED
+LOG_FILE_PATH
+LOG_FILE_MAX_BYTES
+LOG_FILE_BACKUP_COUNT
+
+Normal operational logs should go to stdout.
+ERROR/CRITICAL should go to stderr.
+Avoid duplicate log records across handlers.
+
+Logging initialization must be idempotent.
+
+Use the same logging facility for:
+- FastAPI
+- MongoDB lifecycle
+- Redis lifecycle
+- repositories
+- usecases
+- jobs
+
+Do not log secrets.
+
+11. API Dockerfile
+
+Create or complete:
+
+Dockerfiles/esim-market-backend-api
+
+Requirements:
+
+FROM python:3.12.14-slim-trixie
+
+COPY requirements-api.txt before application source.
+
+COPY ./backend /home/backend
+
+ENTRYPOINT must be exactly:
+
+ENTRYPOINT ["uvicorn"]
+
+Use CMD for:
+- application module,
+- host 0.0.0.0,
+- port 8000.
+
+Ensure the Python package/module path actually works.
+
+The image must be compatible with Uvicorn --reload for development, but do not falsely claim COPY alone makes host changes visible.
+
+12. Job Dockerfile
+
+Create or complete:
+
+Dockerfiles/esim-market-backend-job
+
+Requirements:
+
+FROM python:3.12.14-slim-trixie
+
+Install dumb-init.
+
+COPY requirements-job.txt before source.
+
+COPY ./backend /home/backend
+
+ENTRYPOINT must be:
+
+ENTRYPOINT ["dumb-init", "--"]
+
+CMD must start the taskmanager using Python.
+
+Do not run Uvicorn from the job image.
+
+13. Requirements files
+
+Create/complete:
+
+requirements-api.txt
+
+with exact compatible versions of at least:
+- fastapi
+- uvicorn[standard]
+- pydantic 2.x
+- pydantic-settings
+- beanie
+- pymongo
+- redis
+- httpx
+
+Create/complete:
+
+requirements-job.txt
+
+with exact compatible versions of at least:
+- pydantic 2.x
+- pydantic-settings
+- beanie
+- pymongo
+- redis
+- httpx
+
+Do not add asyncio.
+
+Do not add FastAPI/Uvicorn to the jobs requirements unless actually needed.
+
+14. AsyncDisposable and JobBase
+
+Create/complete:
+
+backend/gate/taskmanager/async_disposable.py
+backend/gate/taskmanager/job_base.py
+
+Requirements:
+
+AsyncDisposable:
+- async __aenter__()
+- async __aexit__()
+- explicit async cleanup contract
+
+JobBase:
+- abstract
+- participates in AsyncDisposable lifecycle
+- defines async run()
+
+15. Dummy long-running job
+
+Create:
+
+backend/gate/taskmanager/dummy_long_running_job.py
+
+Requirements:
+
+- inherit JobBase,
+- loop continuously until cancellation/shutdown,
+- no busy loop,
+- async sleep/wait,
+- periodic heartbeat logging,
+- clean SIGTERM/SIGINT handling,
+- MongoDB/Redis cleanup.
+
+Do not implement:
+
+while True:
+    pass
+
+16. Taskmanager entrypoint
+
+Create/complete:
+
+backend/gate/taskmanager/main.py
+
+Use one asyncio.run(main()) at the synchronous process boundary.
+
+Implement graceful cancellation/shutdown.
+
+Use the MongoDB and Redis lifecycle facilities.
+
+17. .dockerignore
+
+Ensure repository-root .dockerignore excludes at least:
+
+.git
+.gitignore
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv
+.env
+.env.*
+
+Do not exclude:
+- backend/static/
+- requirements-api.txt
+- requirements-job.txt
+- Dockerfiles/
+
+18. Validation
+
+After implementation, actually run all feasible validations.
+
+Run:
+
+python -m compileall backend
+
+Build API:
+
+docker build \
+  -f Dockerfiles/esim-market-backend-api \
+  -t esim-market-backend-api:local \
+  .
+
+Build job:
+
+docker build \
+  -f Dockerfiles/esim-market-backend-job \
+  -t esim-market-backend-job:local \
+  .
+
+Where dependencies are available, validate:
+
+/health/live
+/health/ready
+/docs
+/redoc
+/openapi.json
+/static/swagger-ui-bundle.js
+/static/swagger-ui.css
+/static/redoc.standalone.js
+
+Also validate:
+- seller RepositoryFactory mapping,
+- supplied httpx.AsyncClient reuse,
+- Redis factory selection,
+- AsyncDisposable lifecycle,
+- JobBase lifecycle,
+- dummy job cancellation and cleanup.
+
+Do not claim any validation passed unless it was actually executed.
+
+Very important rules:
+
+- Do not reimplement Redis from scratch.
+- Do not modify the skipped sections of AGENTS.md.
+- Do not invent seller SDK behavior.
+- Do not silently change pinned Docker base images.
+- Do not ignore missing AGENTS.md requirements simply because one subsystem already works.
+- Do not stop after implementing only one missing item.
+- Continue until every feasible Section 1 requirement is COMPLETE or explicitly BLOCKED.
+
+At the end, provide a requirement-by-requirement completion report with:
+
+- COMPLETE items,
+- BLOCKED items,
+- files created,
+- files modified,
+- exact dependency versions,
+- Docker build results,
+- runtime/test results,
+- any remaining gaps.
+
+The final report must explicitly state whether the entire
+"Bootstraping / Initializing"
+section of AGENTS.md is complete.
