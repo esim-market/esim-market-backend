@@ -519,6 +519,51 @@ Do not put eSIM business logic in it.
 
 ---
 
+### Unhandled Exception Middleware
+
+Create and register:
+
+```text
+backend/gate/integration/unhandled_exception_middleware.py
+```
+
+with:
+
+```text
+UnhandledExceptionMiddleware
+```
+
+`ApiAppBase` must add this middleware to every FastAPI application it creates.
+
+The middleware must:
+
+- catch only unexpected request-processing exceptions,
+- log the original exception and stack trace through the shared server-side logging facility,
+- return a stable, sanitized JSON error envelope containing a project-owned application error code and request/correlation ID,
+- avoid returning HTTP status `500`; use the project's designated non-500 unhandled-error status,
+- never expose exception messages, exception types, stack traces, credentials, connection strings, source paths, or other system details to clients,
+- preserve framework responses for expected errors such as validation failures and explicit `HTTPException` responses,
+- avoid intercepting process-control exceptions such as cancellation,
+- re-raise if an HTTP response has already started and can no longer be safely replaced.
+
+The initial bootstrap contract is:
+
+```json
+{
+  "error": {
+    "code": "ESIM-UNHANDLED-001",
+    "message": "An unexpected error occurred.",
+    "request_id": "<opaque-correlation-id>"
+  }
+}
+```
+
+with HTTP status `520` and a matching `X-Request-ID` response header.
+
+Do not use this middleware to hide expected domain errors. Expected errors must be mapped explicitly by their owning gate or use case.
+
+---
+
 ### Liveness and Readiness
 
 Create:

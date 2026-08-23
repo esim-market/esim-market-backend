@@ -11,6 +11,7 @@ from backend.common.logging import configure_logging
 from backend.common.mongodb_lifecycle_mixin import MongoDbLifecycleMixin
 from backend.common.redis_lifecycle_mixin import RedisLifecycleMixin
 from .health_router import router as health_router
+from .unhandled_exception_middleware import UnhandledExceptionMiddleware
 
 
 class ApiAppBase(MongoDbLifecycleMixin, RedisLifecycleMixin):
@@ -34,6 +35,7 @@ class ApiAppBase(MongoDbLifecycleMixin, RedisLifecycleMixin):
                 await self.close_mongodb()
 
         app = FastAPI(root_path=self.root_path, docs_url=None, redoc_url=None, lifespan=lifespan)
+        app.add_middleware(UnhandledExceptionMiddleware)
         static_dir = Path(__file__).resolve().parents[2] / "static"
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
         app.include_router(health_router)
