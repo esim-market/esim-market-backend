@@ -315,6 +315,26 @@ Keep pure domain models under:
 backend/common/entity/domain/
 ```
 
+Define `MongoSettings` with flat, environment-backed properties:
+
+```text
+DEBUG
+MONGO_DSN
+MONGO_ENDPOINT
+MONGO_DB_NAME
+MONGO_USER
+MONGO_PASS
+MONGO_REPL
+```
+
+`MONGO_ENDPOINT`, `MONGO_USER`, and `MONGO_PASS` are required. `MONGO_DB_NAME`
+defaults to `UK1648`, while `MONGO_DSN` and `MONGO_REPL` are optional.
+
+When `MONGO_DSN` is absent, derive it after settings validation from the endpoint,
+database, credentials, and optional replica-set name. When `MONGO_DSN` is supplied,
+use it unchanged. Keep `AppSettings` independent so it does not instantiate required
+MongoDB settings during module import.
+
 ---
 
 ### MongoDB Lifecycle Mixin
@@ -324,8 +344,8 @@ Create reusable MongoDB lifecycle mixins for both API and taskmanager.
 Responsibilities:
 
 - load settings,
-- create `AsyncMongoClient`,
-- initialize Beanie,
+- create `AsyncMongoClient` with `MONGO_DSN`,
+- initialize Beanie with `MONGO_DB_NAME`,
 - expose/store the client,
 - close resources on shutdown/disposal.
 
