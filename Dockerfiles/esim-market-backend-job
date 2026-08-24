@@ -1,7 +1,7 @@
 FROM python:3.12.14-slim-trixie
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends dumb-init \
+    && apt-get install -y --no-install-recommends dumb-init curl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /home
 COPY requirements-job.txt /tmp/requirements-job.txt
