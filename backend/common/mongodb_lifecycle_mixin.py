@@ -1,17 +1,26 @@
-from beanie import init_beanie
+from collections.abc import Sequence
+
+from beanie import Document, init_beanie
 from pymongo import AsyncMongoClient
 
 from backend.common.env.settings import MongoSettings
 
 
 class MongoDbLifecycleMixin:
-    async def open_mongodb(self, settings: MongoSettings | None = None) -> None:
+    async def open_mongodb(
+        self,
+        settings: MongoSettings | None = None,
+        document_models: Sequence[type[Document]] = (),
+    ) -> None:
         config = settings or MongoSettings()
-        client = AsyncMongoClient(config.uri)
+        client = AsyncMongoClient(config.MONGO_DSN)
         self.mongodb_client = client
         try:
             await client.admin.command("ping")
-            await init_beanie(database=client[config.database], document_models=[])
+            await init_beanie(
+                database=client[config.MONGO_DB_NAME],
+                document_models=list(document_models),
+            )
         except Exception:
             await client.close()
             self.mongodb_client = None

@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.openapi.docs import get_redoc_html, get_swagger_ui_html, get_swagger_ui_oauth2_redirect_html
 from fastapi.staticfiles import StaticFiles
 
+from backend.common.entity.db import DummyDocument
 from backend.common.env.redis_env_settings import RedisEnvSettings
 from backend.common.env.settings import MongoSettings
 from backend.common.logging import configure_logging, get_logger
@@ -25,7 +26,10 @@ class ApiAppBase(MongoDbLifecycleMixin, RedisLifecycleMixin):
         async def lifespan(app: FastAPI):
             configure_logging()
             try:
-                await self.open_mongodb(MongoSettings())
+                await self.open_mongodb(
+                    MongoSettings(),
+                    document_models=[DummyDocument],
+                )
             except Exception:
                 logger.exception("MongoDB is unavailable during API startup")
             try:

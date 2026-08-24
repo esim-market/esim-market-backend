@@ -157,6 +157,10 @@ ENV/
 env.bak/
 venv.bak/
 
+# Project configuration package (not a virtual environment)
+!backend/common/env/
+!backend/common/env/*.py
+
 # Spyder project settings
 .spyderproject
 .spyproject
